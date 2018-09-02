@@ -1,0 +1,75 @@
+#include <iostream>
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+
+// 캐니 엣지 => 침식 => HOUGH 
+
+using namespace std;
+using namespace cv;
+
+int main()
+{
+	Mat image = imread("goodsample1.png", 0);
+	namedWindow("Original Image");
+	imshow("Original Image", image);
+
+
+	GaussianBlur(image, image, Size(5, 5), 1, 1);
+
+	// 케니 알고리즘 적용
+	Mat contours;
+	Canny(image, // 그레이레벨 영상
+		contours, // 결과 외곽선
+		10,  // 낮은 경계값
+		30);  // 높은 경계값
+
+			  // 넌제로 화소로 외곽선을 표현하므로 흑백 값을 반전
+	Mat contoursInv; // 반전 영상
+	threshold(contours, contoursInv, 128, 255, cv::THRESH_BINARY_INV);
+
+
+	cv::Mat image_circle;
+	image_circle = contoursInv;
+
+	cv::GaussianBlur(image, image, cv::Size(5, 5), 1.5);
+	std::vector<cv::Vec3f> circles;
+
+	int erosion_type = MORPH_ELLIPSE;
+	int erosion_size = 3;
+	Mat element = getStructuringElement(erosion_type, Size(2 * erosion_size + 1, 2 * erosion_size + 1),
+		Point(erosion_size, erosion_size));
+
+	Mat erosion_dst; erode(contoursInv, erosion_dst, element);
+
+
+	cv::HoughCircles(erosion_dst, circles, HOUGH_GRADIENT,
+		3,   // 누적기 해상도(영상크기/2)
+		30,  // 두 원 간의 최소 거리
+		200, // 캐니 최대 경계값
+		100, // 투표 최소 개수
+		15, 38); // 최소와 최대 반지름
+
+	std::cout << "Circles: " << circles.size() << std::endl;
+
+	// 원 그리기
+	image = contoursInv;
+	std::vector<cv::Vec3f>::const_iterator itc = circles.begin();
+	while (itc != circles.end()) {
+		cv::circle(image,
+			cv::Point((*itc)[0], (*itc)[1]), // 원 중심
+			(*itc)[2],  // 원 반지름
+			cv::Scalar(0), // 컬러 
+			2);    // 두께
+		++itc;
+	}
+
+	cv::namedWindow("Detected Circles");
+	cv::imshow("Detected Circles", image_circle);
+
+
+
+	cv::waitKey(0);
+
+	return 0;
+}
